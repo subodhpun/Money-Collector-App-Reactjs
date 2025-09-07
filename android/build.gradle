@@ -1,0 +1,68 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+    ext {
+        // SDK versions
+        compileSdkVersion = 35
+        minSdkVersion = 24
+        targetSdkVersion = 35
+
+        // Library versions
+        androidxAppCompatVersion = "1.6.1"
+        androidxCoordinatorLayoutVersion = "1.2.0"
+        coreSplashScreenVersion = "1.0.1"
+        junitVersion = "4.13.2"
+        androidxJunitVersion = "1.1.5"
+        androidxEspressoCoreVersion = "3.5.1"
+    }
+
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.8.0'
+        classpath 'com.google.gms:google-services:4.4.2'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.25"  // ✅ Kotlin plugin added
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        flatDir {
+            dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+        }
+    }
+}
+
+// ✅ Force Java 17 & Kotlin 17 globally for all subprojects
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty("android")) {
+            android {
+                compileOptions {
+                    sourceCompatibility JavaVersion.VERSION_17
+                    targetCompatibility JavaVersion.VERSION_17
+                }
+            }
+        }
+
+        tasks.withType(JavaCompile).configureEach {
+            sourceCompatibility = '17'
+            targetCompatibility = '17'
+        }
+
+        tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+            kotlinOptions {
+                jvmTarget = "17"
+            }
+        }
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}
