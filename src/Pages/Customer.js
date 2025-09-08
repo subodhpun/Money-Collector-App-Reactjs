@@ -14,6 +14,36 @@ const Customers = () => {
     }
     loadCustomers();
   }, [])
+  //update due automatically daily
+  // Update overdue 'due' for all customers on page load
+useEffect(() => {
+  async function updateOverdue() {
+    const allCustomers = await getAllCustomers();
+    const today = new Date().toISOString().split("T")[0];
+
+    const updatedCustomers = await Promise.all(
+      allCustomers.map(async (c) => {
+        const lastDate = c.lastCollectedDate || c.startDate;
+        const diffDays = Math.floor((new Date(today) - new Date(lastDate)) / (1000 * 60 * 60 * 24));
+
+        if (diffDays > 0) {
+          const newDue = diffDays * c.deposit;
+          if (newDue !== c.due) {
+            const updatedCustomer = { ...c, due: newDue };
+            await updateCustomer(c.id, updatedCustomer); // persist
+            return updatedCustomer;
+          }
+        }
+        return c;
+      })
+    );
+
+    setCustomer(updatedCustomers);
+  }
+
+  updateOverdue();
+}, []);
+
   const [showModal, setShowModal] = useState(false);
   const [newCustomer, setNewCustomer] = useState({
     name: '',
@@ -112,6 +142,7 @@ const Customers = () => {
     const diffTime = todayObj - lastDateObj;
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
     const extraDue = diffDays > 1 ? (diffDays - 1) * c.deposit : 0;
+    
   
     const updatedCustomer = {
       ...c,
