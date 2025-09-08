@@ -14,36 +14,6 @@ const Customers = () => {
     }
     loadCustomers();
   }, [])
-  //update due automatically daily
-  // Update overdue 'due' for all customers on page load
-useEffect(() => {
-  async function updateOverdue() {
-    const allCustomers = await getAllCustomers();
-    const today = new Date().toISOString().split("T")[0];
-
-    const updatedCustomers = await Promise.all(
-      allCustomers.map(async (c) => {
-        const lastDate = c.lastCollectedDate || c.startDate;
-        const diffDays = Math.floor((new Date(today) - new Date(lastDate)) / (1000 * 60 * 60 * 24));
-
-        if (diffDays > 0) {
-          const newDue = diffDays * c.deposit;
-          if (newDue !== c.due) {
-            const updatedCustomer = { ...c, due: newDue };
-            await updateCustomer(c.id, updatedCustomer); // persist
-            return updatedCustomer;
-          }
-        }
-        return c;
-      })
-    );
-
-    setCustomer(updatedCustomers);
-  }
-
-  updateOverdue();
-}, []);
-
   const [showModal, setShowModal] = useState(false);
   const [newCustomer, setNewCustomer] = useState({
     name: '',
@@ -125,32 +95,30 @@ useEffect(() => {
     setCustomer(customer.filter((_, i) => i !== index));
   }
 
+  //total due
+  const calculateDue = (customer) => {
+    const today = new Date().toISOString().split("T")[0];
+    const lastDate = customer.lastCollectedDate || customer.startDate;
+    const diffDays = Math.floor((new Date(today) - new Date(lastDate)) / (1000*60*60*24));
+  
+    return customer.due + (diffDays > 0 ? diffDays * customer.deposit : 0);
+  }
+  
 
   const handleCollected = async (index) => {
     const today = new Date().toISOString().split("T")[0];
     const c = customer[index];
+    const dueAmount = calculateDue(c);  
   
-    // Already collected today → skip
-    if (c.lastCollectedDate === today) return;
+    if (dueAmount <= 0) return; // nothing to collect
   
-    // Use last collection date or start date
-    const lastDate = c.lastCollectedDate || c.startDate;
-    const lastDateObj = new Date(lastDate);
-    const todayObj = new Date(today);
-  
-    // Calculate gap in days
-    const diffTime = todayObj - lastDateObj;
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    const extraDue = diffDays > 1 ? (diffDays - 1) * c.deposit : 0;
-    
-  
+    // Collect only one deposit
     const updatedCustomer = {
       ...c,
-      totalCollected: c.totalCollected + c.deposit + extraDue,
-      due: 0, // ✅ reset after collecting
+      totalCollected: c.totalCollected + c.deposit,
+      due: dueAmount - c.deposit, // reduce due by one deposit
       lastCollectedDate: today,
-      lastCollectedAmount: c.deposit + extraDue,
-      // logs: [...(c.logs || []), {date:today, amount:c.lastCollectedAmount, due: c.due}],
+      lastCollectedAmount: c.deposit,
     };
   
     await updateCustomer(c.id, updatedCustomer);
@@ -160,33 +128,37 @@ useEffect(() => {
     );
   };
   
+  
 
 
   //handle undo
   const handleUndo = async (index) => {
     const today = new Date().toISOString().split("T")[0];
-
+  
     setCustomer(prev =>
       prev.map((c, i) => {
         if (i !== index) return c;
         if (c.lastCollectedDate !== today) return c; // only undo today
-
+  
+        // Calculate total due including missed days
+        const totalDue = calculateDue(c);
+  
         const updatedCustomer = {
           ...c,
           totalCollected: Math.max(c.totalCollected - (c.lastCollectedAmount || c.deposit), 0),
-          due: c.deposit,
+          due: totalDue, // restore due correctly
           lastCollectedDate: null,
           lastCollectedAmount: 0,
         };
-
+  
         // Persist to IndexedDB
         updateCustomer(updatedCustomer.id, updatedCustomer);
-
+  
         return updatedCustomer;
       })
     );
   };
-
+  
 
   // Handle updating deposit and frequency
   const handleDepositAmount = async (index, newDeposit, newFrequency) => {
